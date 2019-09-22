@@ -199,7 +199,6 @@ void shortcutRes(instruction* i_ptr)
 						else						//is stored in par_dir, if not then the current 
 							par_dir = buf_dir;			//entry in buf_dir is stored
 
-						printf("par_dir after first = %d : %s\n", first, par_dir);
 						append = (char*) malloc (sizeof(char));
 						append[copy] = '\0';
 						if (first == 1)
@@ -215,8 +214,6 @@ void shortcutRes(instruction* i_ptr)
 						}
 						append[copy] = '\0';
 
-						printf("append: %s\n", append);
-
 						for (y = 0; par_dir[y] != '\0'; y++)
 						{						//This finds the location of the final
 							if (par_dir[y] == '/')			//forward-slash in the code
@@ -231,7 +228,6 @@ void shortcutRes(instruction* i_ptr)
 
 						if (append[0] == '.' || append[1] == '.')
 						{
-							printf("Next dir is a shortcut\n");
 							if(first == 1)
 								buf_dir = (char*) malloc((slash + 1) * sizeof(char));
 							else
@@ -251,7 +247,6 @@ void shortcutRes(instruction* i_ptr)
 								memcpy(buf_dir, par_dir, slash + 1);
 								buf_dir[++slash] = '\0';
 							}
-							printf("%s + %s = ", buf_dir, append);
 							copy = slash;
 							for(k = 0; append[k] != '\0'; k++)
 							{
@@ -261,12 +256,10 @@ void shortcutRes(instruction* i_ptr)
 								j++;
 								if (append[k+1] == '/')
 									break;
-								printf("%s\n", buf_dir);
 							}
 						}
 						if (strcmp(par_dir, getenv("PWD")) == 0)
 							first = 2;
-						printf("buf_dir after processing: %s\n", buf_dir);
 						buff = 1;
 					}
 					else if(i_ptr->tokens[i][j+1] == '/')
@@ -274,7 +267,6 @@ void shortcutRes(instruction* i_ptr)
 						//This runs when attaching a pwd shortcut to the extending buffer directory
 						if (j==0)
 						{
-							printf("Adding . shortcut res\n");
 							par_dir = getenv("PWD");
 							buf_dir = (char*) malloc(sizeof(char));
 							for(y = 0; par_dir[y] != '\0'; y++)
@@ -292,19 +284,16 @@ void shortcutRes(instruction* i_ptr)
 
 				else if (i_ptr->tokens[i][j] == '/' && i_ptr->tokens[i][j+1] != '.' && i_ptr->tokens[i][j+1] != '\0')
 				{
-					printf("Adding a new directory\n");
 					int copy = j;
 					int end = 0;
 					while (buf_dir[end] != '\0')
-					{ end++; printf("%d\n", end); }
+					{ end++; }
 					while(i_ptr->tokens[i][copy] != '\0')	
 					{
-						printf("Before: %s\n", buf_dir);
 						buf_dir = (char*) realloc(buf_dir, (end + 1) * sizeof(char));
 						buf_dir[end++] = i_ptr->tokens[i][copy];
 						buf_dir[end] = '\0';
 						copy++;
-						printf("After: %s\n", buf_dir);
 						if(i_ptr->tokens[i][copy+1] == '/')
 							break;
 					}
@@ -313,7 +302,6 @@ void shortcutRes(instruction* i_ptr)
 				else if((i_ptr->tokens)[i][0] == '~' && home == 1)
 				{
 					par_dir = getenv("HOME");
-					printf("HOME should be: %s \n", par_dir);
 					buf_dir = (char*) malloc (sizeof(char));
 					buf_dir[0] = '\0';
 					for(y = 0; par_dir[y] != '\0'; y++)
@@ -324,12 +312,12 @@ void shortcutRes(instruction* i_ptr)
 					}
 					if (home == 1)
 						home = 2;
-					printf("Buf_dir after processing ~/ : %s\n",buf_dir);
 					buff = 1;
 				}
 				else if(i_ptr->tokens[i][j] == '~' && j != 0)
 				{
-					printf("Not valid directory: %s", (i_ptr->tokens)[i]);	
+					printf("%s: not a valid directory", (i_ptr->tokens)[i]);
+					i_ptr->tokens[i] = NULL;	
 					break;
 				}
 			}
@@ -344,8 +332,6 @@ void shortcutRes(instruction* i_ptr)
 					last_sl = x;
 			(i_ptr->tokens)[i] = (char*) realloc ((i_ptr->tokens)[i], last_sl+1 * sizeof(char));
 			memcpy(i_ptr->tokens[i], par_dir, last_sl+1);
-			//i_ptr->tokens[i][last_sl] = '\0';
-			printf("%s\n", i_ptr->tokens[i]);
 		}
 		else if (look == NULL && strcmp((i_ptr->tokens)[i], ".") == 0)
 		{
@@ -370,9 +356,6 @@ void shortcutRes(instruction* i_ptr)
 			memcpy(i_ptr->tokens[i], buf_dir, strlen(buf_dir));
 			i_ptr->tokens[i][strlen(buf_dir)] = '\0';
 		}
-
-		printf("FREE FIN_DIR AND APPEND\n");
-		printf("Final path: %s\n", i_ptr->tokens[i]);
 	}
 	free(append);
 	free(buf_dir);
@@ -385,8 +368,7 @@ void pathResolution(instruction *i_ptr)
 	char* path = getenv("PATH");
 	char* buf_dir = NULL;
 	char* temp = NULL;
-	size_t first = 1;
-	printf("%s\n", path);
+	size_t first = 1, found = 1;
 	for (i; i < i_ptr->numTokens - 1; i++)
 	{
 		look = strchr(i_ptr->tokens[i], '/');
@@ -396,7 +378,7 @@ void pathResolution(instruction *i_ptr)
 			buf_dir = (char*) malloc (sizeof(char));
 			for(x; path[x] != '\0'; x++)
 			{
-				if(path[x] != ':')
+				if(path[x] != ':' && path[x+1] != '\0')
 				{
 					buf_dir = (char*) realloc (buf_dir, (start + 2) * sizeof(char));
 					buf_dir[start] = path[x];
@@ -405,6 +387,12 @@ void pathResolution(instruction *i_ptr)
 				}
 				else
 				{
+					if (path[x] == '.' && path[x+1] == '\0')
+					{
+						buf_dir = (char*) realloc (buf_dir, (strlen(getenv("PWD"))+1) * sizeof(char));
+						memcpy(buf_dir, getenv("PWD"), strlen(getenv("PWD")));
+						start = strlen(getenv("PWD"))-1;
+					}
 					buf_dir = (char*) realloc (buf_dir, (start + 2) * sizeof(char));
 					buf_dir[start++] = '/';
 					buf_dir[start] = '\0';
@@ -415,25 +403,29 @@ void pathResolution(instruction *i_ptr)
 						buf_dir[start+1] = '\0';
 						start++;
 					}
-					printf("Path: %s\n", buf_dir);
 					FILE* pTest = fopen(buf_dir, "r");
 					if (pTest != NULL)
 					{
-						printf("Opened!\n");
 						fclose(pTest);
+						found = 2;
 						break;
 					}
 					else
-						printf("Not opened\n");
+					{
+						if (path[x+1] == '\0')
+						{
+							printf("%s: no file or command exists\n", i_ptr->tokens[i]);
+							i_ptr->tokens[i] = NULL;
+						}
+					}
 					buf_dir = NULL;
 					start = 0;
 				}
 				
 			}
 		}
-		if (buf_dir != NULL)
+		if (buf_dir != NULL && found == 2)
 		{
-			printf("Start: %d Path: %s\n", start, buf_dir);
 			i_ptr->tokens[i] = (char*) realloc(i_ptr->tokens[i], (start + 1)* sizeof(char));
 	 		memcpy(i_ptr->tokens[i], buf_dir, start + 1);
 		}
