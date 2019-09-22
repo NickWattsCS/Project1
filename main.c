@@ -188,6 +188,8 @@ void shortcutRes(instruction* i_ptr)
 				// If the path contains a . or .. shortcut, this if block runs
 				if ((i_ptr->tokens)[i][j] == '.')
 				{	
+					//If there is a .. token in the path name, then this if block runs
+
 					if(i_ptr->tokens[i][j+1] == '.')
 					{
 						j++;
@@ -208,6 +210,7 @@ void shortcutRes(instruction* i_ptr)
 						for (k; i_ptr->tokens[i][k] != '\0'; k++)
 						{
 							append = realloc(append, (copy + 2) * sizeof(char*));
+
 												//this copies what hasn't yet been scanned 
 							append[copy] = i_ptr->tokens[i][k];	//and processed from i_ptr->tokens and places
 							copy++;					//it into the append char*
@@ -216,9 +219,9 @@ void shortcutRes(instruction* i_ptr)
 
 						for (y = 0; par_dir[y] != '\0'; y++)
 						{						//This finds the location of the final
-							if (par_dir[y] == '/')			//forward-slash in the code
-								slash = y;
-						}
+							if (par_dir[y] == '/')			//forward-slash in the code so that any
+								slash = y;			//data after is not copied over into
+						}						//buf_dir
 						k = 0;
 						
 
@@ -241,6 +244,8 @@ void shortcutRes(instruction* i_ptr)
 
 						else
 						{
+							/* If this is the first loop, the information from par_dir is
+							copied into buf_dir until it reaches the final slash */
 							if (first == 1)
 							{
 								buf_dir = (char*) malloc((slash + 1) * sizeof(char));
@@ -258,10 +263,18 @@ void shortcutRes(instruction* i_ptr)
 									break;
 							}
 						}
+
+						/* If par_dir == PWD and not whatever is in buf_dir, then the first flag
+						is set to signify that the parent directory does not need to be copied from
+						par_dir */
 						if (strcmp(par_dir, getenv("PWD")) == 0)
 							first = 2;
 						buff = 1;
 					}
+					/* This if block runs only if the . token is at the beginning of the relative path.
+					This is because any directory followed by './' is still within that same directory.
+					Thus, the only time this runs is at the beginning to copy the PWD. */
+
 					else if(i_ptr->tokens[i][j+1] == '/')
 					{
 						//This runs when attaching a pwd shortcut to the extending buffer directory
@@ -280,7 +293,8 @@ void shortcutRes(instruction* i_ptr)
 					}
 				}
 
-				//This else-if block runs if the relative path contains a / token by 
+				/* This else if runs when a normal directory name is encountered in the stored relative
+				directory. The directory is copied from the tokens array into the buf_dir array. */
 
 				else if (i_ptr->tokens[i][j] == '/' && i_ptr->tokens[i][j+1] != '.' && i_ptr->tokens[i][j+1] != '\0')
 				{
@@ -288,6 +302,10 @@ void shortcutRes(instruction* i_ptr)
 					int end = 0;
 					while (buf_dir[end] != '\0')
 					{ end++; }
+					
+					/* This while loop continuously adds letters from the tokens array while it
+					does not encounter a null character. When the loop encounters a second /, the 
+					loop breaks. */
 					while(i_ptr->tokens[i][copy] != '\0')	
 					{
 						buf_dir = (char*) realloc(buf_dir, (end + 1) * sizeof(char));
@@ -299,6 +317,10 @@ void shortcutRes(instruction* i_ptr)
 					}
 					buff = 1;
 				}
+				/* This else if runs when there is a ~ in the relative path as long as it's the first
+				symbol in the argument. Once the argument is processed, a flag is set so that it doesn't
+				run in the future. */
+
 				else if((i_ptr->tokens)[i][0] == '~' && home == 1)
 				{
 					par_dir = getenv("HOME");
@@ -314,6 +336,8 @@ void shortcutRes(instruction* i_ptr)
 						home = 2;
 					buff = 1;
 				}
+				/* This else if runs when there is a ~ in the path that does not occur at the beginning
+				and says an error message. */
 				else if(i_ptr->tokens[i][j] == '~' && j != 0)
 				{
 					printf("%s: not a valid directory", (i_ptr->tokens)[i]);
@@ -322,6 +346,7 @@ void shortcutRes(instruction* i_ptr)
 				}
 			}
 		}
+		/* This else if occurs when the token == ".." It stores the location of the parent directory. */
 		else if (look == NULL && strcmp((i_ptr->tokens)[i], "..") == 0)
 		{
 			buff = 2;
@@ -333,6 +358,7 @@ void shortcutRes(instruction* i_ptr)
 			(i_ptr->tokens)[i] = (char*) realloc ((i_ptr->tokens)[i], last_sl+1 * sizeof(char));
 			memcpy(i_ptr->tokens[i], par_dir, last_sl+1);
 		}
+		/* This else if occurs when token == "." and stores the location of PWD */
 		else if (look == NULL && strcmp((i_ptr->tokens)[i], ".") == 0)
 		{
 			buff = 2;
@@ -341,6 +367,7 @@ void shortcutRes(instruction* i_ptr)
 			memcpy(i_ptr->tokens[i], par_dir, strlen(par_dir));
 			i_ptr->tokens[i][strlen(par_dir)] = '\0';	
 		}
+		/* This else if occurs when token == "~" and stores the location of $HOME */
 		else if (look == NULL && strcmp((i_ptr->tokens)[i], "~")  == 0)
 		{
 			buff = 2;
@@ -350,6 +377,8 @@ void shortcutRes(instruction* i_ptr)
 			i_ptr->tokens[i][strlen(par_dir)] = '\0';
 		}
 
+		/* This if statement copies the contents of buf_dir into the tokens array if buf_dir is used and
+		if the for loop has reached the end of the token. */
 		if (i_ptr->tokens[i][j+1] == '\0' && buff == 1)
 		{
 			i_ptr->tokens[i] = (char*) realloc (i_ptr->tokens[i], (strlen(buf_dir)+1 * sizeof(char)));
@@ -361,6 +390,10 @@ void shortcutRes(instruction* i_ptr)
 	free(buf_dir);
 }			
 
+/* This function tries to resolve any tokens that are placed in the tokens array that don't contain a
+forward-slash by comparing them to the paths in $PATH. If there is a file that exists when $PATH/token 
+has been formed, it is stored in the tokens array. If not, the token remains unchanged in case it is
+a built-in command. */
 void pathResolution(instruction *i_ptr)
 {
 	int i = 0, j = 0, x = 0, start = 0;
@@ -372,12 +405,18 @@ void pathResolution(instruction *i_ptr)
 	for (i; i < i_ptr->numTokens - 1; i++)
 	{
 		look = strchr(i_ptr->tokens[i], '/');
+		// This if statement runs if / is not in a given token in the tokens array
 		if (look == NULL)
 		{
 			buf_dir = NULL;
 			buf_dir = (char*) malloc (sizeof(char));
 			for(x; path[x] != '\0'; x++)
 			{
+
+				/* If a : is reached, the path that has been scanned and copied into buf_dir
+				is concatenated with the token, after which the program determines if the file
+				exists or not. If it doesn't exist, then the next path is copied into buf_dir. 
+				If the file does exist, the loop breaks. */
 				if(path[x] != ':' && path[x+1] != '\0')
 				{
 					buf_dir = (char*) realloc (buf_dir, (start + 2) * sizeof(char));
@@ -414,8 +453,8 @@ void pathResolution(instruction *i_ptr)
 					{
 						if (path[x+1] == '\0')
 						{
-							printf("%s: no file or command exists\n", i_ptr->tokens[i]);
-							i_ptr->tokens[i] = NULL;
+							//printf("%s: no file or command exists\n", i_ptr->tokens[i]);
+							//i_ptr->tokens[i] = NULL;
 						}
 					}
 					buf_dir = NULL;
@@ -424,6 +463,8 @@ void pathResolution(instruction *i_ptr)
 				
 			}
 		}
+		/* This if statement copies the path stored in buf_dir into the tokens array so it can be
+		processed by execution. */
 		if (buf_dir != NULL && found == 2)
 		{
 			i_ptr->tokens[i] = (char*) realloc(i_ptr->tokens[i], (start + 1)* sizeof(char));
